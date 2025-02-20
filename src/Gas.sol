@@ -32,13 +32,13 @@ contract GasContract is Ownable, Constants {
     History[] public paymentHistory; // when a payment was updated
 
     struct Payment {
-        PaymentType paymentType;
         uint256 paymentID;
-        bool adminUpdated;
-        string recipientName; // max 8 characters
-        address recipient;
-        address admin; // administrators address
         uint256 amount;
+        address recipient;
+        bool adminUpdated;
+        PaymentType paymentType;
+        bytes8 recipientName; // max 8 characters, changed from string to bytes8
+        address admin; // administrators address
     }
 
     struct History {
@@ -102,8 +102,8 @@ contract GasContract is Ownable, Constants {
         address admin,
         uint256 ID,
         uint256 amount,
-        string recipient
-    );
+        bytes8 recipient 
+    ); // updated recipient type from string to bytes8
     event WhiteListTransfer(address indexed);
 
     constructor(address[] memory _admins, uint256 _totalSupply) {
@@ -212,7 +212,7 @@ contract GasContract is Ownable, Constants {
         payment.paymentType = PaymentType.BasicPayment;
         payment.recipient = _recipient;
         payment.amount = _amount;
-        payment.recipientName = _name;
+        payment.recipientName = bytes8(bytes(_name));
         payment.paymentID = ++paymentCounter;
         payments[senderOfTx].push(payment);
         bool[] memory status = new bool[](tradePercent);
