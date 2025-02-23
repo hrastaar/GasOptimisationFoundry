@@ -3,24 +3,14 @@ pragma solidity ^0.8.0;
 
 import "./Ownable.sol";
 
-contract Constants {
-    bool public tradeFlag = true;
-    bool public basicFlag = false;
-    bool public dividendFlag = true;
-}
-
-contract GasContract is Ownable, Constants {
-    uint256 public totalSupply = 0; // cannot be updated
-    uint256 public paymentCounter = 0;
+contract GasContract is Ownable {
+    uint256 public totalSupply; // cannot be updated
+    uint256 public paymentCounter;
     mapping(address => uint256) public balances;
-    uint256 public tradePercent = 12;
     address public contractOwner;
-    uint256 public tradeMode = 0;
     mapping(address => Payment[]) public payments;
     mapping(address => uint256) public whitelist;
     address[5] public administrators;
-    bool public isReady = false;
-
     History[] public paymentHistory; // when a payment was updated
 
     struct Payment {
@@ -129,17 +119,8 @@ contract GasContract is Ownable, Constants {
         return balances[_user];
     }
 
-    function getTradingMode() public view returns (bool mode_) {
-        return tradeFlag || dividendFlag;
-    }
-
-
-    function addHistory(address _updateAddress, bool _tradeMode)
-        public
-        returns (bool status_, bool tradeMode_)
-    {
+    function addHistory(address _updateAddress) public {
         paymentHistory.push(History(block.timestamp, _updateAddress, block.number));
-        return (true, _tradeMode);
     }
 
     function getPayments(address _user)
@@ -169,6 +150,7 @@ contract GasContract is Ownable, Constants {
         );
         balances[msg.sender] -= _amount;
         balances[_recipient] += _amount;
+
         emit Transfer(_recipient, _amount);
         
         payments[msg.sender].push(Payment({
@@ -207,7 +189,7 @@ contract GasContract is Ownable, Constants {
             if (userPayment[ii].paymentID == _ID) {
                 userPayment[ii].amount = _amount;
 
-                addHistory(_user, getTradingMode());
+                addHistory(_user);
 
                 emit PaymentUpdated(
                     senderOfTx,
@@ -231,13 +213,10 @@ contract GasContract is Ownable, Constants {
         );
         whitelist[_userAddrs] = _tier;
         if (_tier > 3) {
-            whitelist[_userAddrs] -= _tier;
             whitelist[_userAddrs] = 3;
         } else if (_tier == 1) {
-            whitelist[_userAddrs] -= _tier;
             whitelist[_userAddrs] = 1;
         } else if (_tier > 0 && _tier < 3) {
-            whitelist[_userAddrs] -= _tier;
             whitelist[_userAddrs] = 2;
         }
         emit AddedToWhitelist(_userAddrs, _tier);
@@ -258,10 +237,12 @@ contract GasContract is Ownable, Constants {
             _amount > 3,
             "Gas Contract - whiteTransfers function - amount to send have to be bigger than 3"
         );
+        
+        uint256 whiteListOfSender = whitelist[senderOfTx];
         balances[senderOfTx] -= _amount;
         balances[_recipient] += _amount;
-        balances[senderOfTx] += whitelist[senderOfTx];
-        balances[_recipient] -= whitelist[senderOfTx];
+        balances[senderOfTx] += whiteListOfSender;
+        balances[_recipient] -= whiteListOfSender;
         
         emit WhiteListTransfer(_recipient);
     }
