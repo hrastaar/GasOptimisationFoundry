@@ -20,13 +20,6 @@ contract GasContract is Ownable, Constants {
     mapping(address => uint256) public whitelist;
     address[5] public administrators;
     bool public isReady = false;
-    enum PaymentType {
-        Unknown,
-        BasicPayment,
-        Refund,
-        Dividend,
-        GroupPayment
-    }
 
     History[] public paymentHistory; // when a payment was updated
 
@@ -34,10 +27,7 @@ contract GasContract is Ownable, Constants {
         uint256 paymentID;
         uint256 amount;
         address recipient;
-        bool adminUpdated;
-        PaymentType paymentType;
         bytes8 recipientName; // max 8 characters, changed from string to bytes8
-        address admin; // administrators address
     }
 
     struct History {
@@ -45,16 +35,10 @@ contract GasContract is Ownable, Constants {
         address updatedBy;
         uint256 blockNumber;
     }
-    uint256 wasLastOdd = 1;
-    mapping(address => uint256) public isOddWhitelistUser;
     
     struct ImportantStruct {
         uint256 amount;
-        uint256 valueA; // max 3 digits
-        uint256 bigValue;
-        uint256 valueB; // max 3 digits
         bool paymentStatus;
-        address sender;
     }
     mapping(address => ImportantStruct) public whiteListStruct;
 
@@ -110,17 +94,15 @@ contract GasContract is Ownable, Constants {
         totalSupply = _totalSupply;
 
         for (uint256 ii = 0; ii < administrators.length; ii++) {
-            if (_admins[ii] != address(0)) {
-                administrators[ii] = _admins[ii];
-                if (_admins[ii] == contractOwner) {
+            address currAdmin = _admins[ii];
+            if (currAdmin != address(0)) {
+                administrators[ii] = currAdmin;
+                if (currAdmin == contractOwner) {
                     balances[contractOwner] = totalSupply;
+                    emit supplyChanged(currAdmin, totalSupply);
                 } else {
-                    balances[_admins[ii]] = 0;
-                }
-                if (_admins[ii] == contractOwner) {
-                    emit supplyChanged(_admins[ii], totalSupply);
-                } else if (_admins[ii] != contractOwner) {
-                    emit supplyChanged(_admins[ii], 0);
+                    balances[currAdmin] = 0;
+                    emit supplyChanged(currAdmin, 0);
                 }
             }
         }
@@ -190,9 +172,6 @@ contract GasContract is Ownable, Constants {
         emit Transfer(_recipient, _amount);
         
         payments[msg.sender].push(Payment({
-            admin: address(0),
-            adminUpdated: false,
-            paymentType: PaymentType.BasicPayment,
             recipient: _recipient,
             amount: _amount,
             recipientName: bytes8(bytes(_name)),
@@ -205,8 +184,7 @@ contract GasContract is Ownable, Constants {
     function updatePayment(
         address _user,
         uint256 _ID,
-        uint256 _amount,
-        PaymentType _type
+        uint256 _amount
     ) public onlyAdminOrOwner {
         require(
             _ID > 0,
@@ -227,9 +205,6 @@ contract GasContract is Ownable, Constants {
 
         for (uint256 ii = 0; ii < userPayment.length; ii++) {
             if (userPayment[ii].paymentID == _ID) {
-                userPayment[ii].adminUpdated = true;
-                userPayment[ii].admin = _user;
-                userPayment[ii].paymentType = _type;
                 userPayment[ii].amount = _amount;
 
                 addHistory(_user, getTradingMode());
@@ -265,14 +240,6 @@ contract GasContract is Ownable, Constants {
             whitelist[_userAddrs] -= _tier;
             whitelist[_userAddrs] = 2;
         }
-
-        if (wasLastOdd == 1) {
-            isOddWhitelistUser[_userAddrs] = 0;
-        } else if (wasLastOdd == 0) {
-            isOddWhitelistUser[_userAddrs] = 1;
-        } else {
-            revert("Contract hacked, imposible, call help");
-        }
         emit AddedToWhitelist(_userAddrs, _tier);
     }
 
@@ -281,7 +248,7 @@ contract GasContract is Ownable, Constants {
         uint256 _amount
     ) public checkIfWhiteListed(msg.sender) {
         address senderOfTx = msg.sender;
-        whiteListStruct[senderOfTx] = ImportantStruct(_amount, 0, 0, 0, true, msg.sender);
+        whiteListStruct[senderOfTx] = ImportantStruct(_amount, true);
         
         require(
             balances[senderOfTx] >= _amount,
